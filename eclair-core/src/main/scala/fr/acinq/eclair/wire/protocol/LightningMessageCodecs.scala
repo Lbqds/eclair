@@ -18,6 +18,7 @@ package fr.acinq.eclair.wire.protocol
 
 import fr.acinq.eclair.wire.Monitoring.{Metrics, Tags}
 import fr.acinq.eclair.wire.protocol.CommonCodecs._
+import fr.acinq.eclair.wire.protocol.OnionCodecs.onionRoutingPacketCodec
 import fr.acinq.eclair.{Features, KamonExt}
 import scodec.bits.{BitVector, ByteVector}
 import scodec.codecs._
@@ -308,6 +309,11 @@ object LightningMessageCodecs {
       ("timestampRange" | uint32) ::
       ("tlvStream" | GossipTimestampFilterTlv.gossipTimestampFilterTlvCodec)).as[GossipTimestampFilter]
 
+  val onionMessageCodec: Codec[OnionMessage] = (
+    ("blindingKey" | publicKey) ::
+      ("onionPacket" | OnionCodecs.messageOnionPacketCodec) ::
+      ("tlvStream" | OnionMessageTlv.onionMessageTlvCodec)).as[OnionMessage]
+
   // NB: blank lines to minimize merge conflicts
 
   //
@@ -361,6 +367,7 @@ object LightningMessageCodecs {
     .typecase(263, queryChannelRangeCodec)
     .typecase(264, replyChannelRangeCodec)
     .typecase(265, gossipTimestampFilterCodec)
+    .typecase(387, onionMessageCodec)
   // NB: blank lines to minimize merge conflicts
 
   //

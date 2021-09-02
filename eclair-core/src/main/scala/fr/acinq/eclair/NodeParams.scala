@@ -94,7 +94,8 @@ case class NodeParams(nodeKeyManager: NodeKeyManager,
                       maxPaymentAttempts: Int,
                       enableTrampolinePayment: Boolean,
                       balanceCheckInterval: FiniteDuration,
-                      blockchainWatchdogSources: Seq[String]) {
+                      blockchainWatchdogSources: Seq[String],
+                      onionMessageRateLimitPerSecond: Double) {
   val privateKey: Crypto.PrivateKey = nodeKeyManager.nodeKey.privateKey
 
   val nodeId: PublicKey = nodeKeyManager.nodeId
@@ -447,7 +448,8 @@ object NodeParams extends Logging {
       maxPaymentAttempts = config.getInt("max-payment-attempts"),
       enableTrampolinePayment = config.getBoolean("trampoline-payments-enable"),
       balanceCheckInterval = FiniteDuration(config.getDuration("balance-check-interval").getSeconds, TimeUnit.SECONDS),
-      blockchainWatchdogSources = config.getStringList("blockchain-watchdog.sources").asScala.toSeq
+      blockchainWatchdogSources = config.getStringList("blockchain-watchdog.sources").asScala.toSeq,
+      onionMessageRateLimitPerSecond = config.getDouble("onion-messages.rate-limit-per-second")
     )
   }
 }

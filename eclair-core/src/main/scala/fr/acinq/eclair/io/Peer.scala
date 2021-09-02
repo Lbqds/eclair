@@ -21,6 +21,7 @@ import akka.event.Logging.MDC
 import akka.event.{BusLogging, DiagnosticLoggingAdapter}
 import akka.util.Timeout
 import com.google.common.net.HostAndPort
+import com.google.common.util.concurrent.RateLimiter
 import fr.acinq.bitcoin.Crypto.PublicKey
 import fr.acinq.bitcoin.{ByteVector32, Satoshi, SatoshiLong, Script}
 import fr.acinq.eclair.Features.Wumbo
@@ -31,15 +32,19 @@ import fr.acinq.eclair.blockchain.fee.FeeratePerKw
 import fr.acinq.eclair.blockchain.{OnChainAddressGenerator, OnChainChannelFunder}
 import fr.acinq.eclair.channel.ChannelTypes.UnsupportedChannelType
 import fr.acinq.eclair.channel._
+import fr.acinq.eclair.crypto.Sphinx
 import fr.acinq.eclair.io.Monitoring.Metrics
 import fr.acinq.eclair.io.PeerConnection.KillReason
 import fr.acinq.eclair.remote.EclairInternalsSerializer.RemoteTypes
 import fr.acinq.eclair.wire.protocol
-import fr.acinq.eclair.wire.protocol.{Error, HasChannelId, HasTemporaryChannelId, LightningMessage, NodeAddress, RoutingMessage, UnknownMessage, Warning}
+import fr.acinq.eclair.wire.protocol.Onion.{MessageFinalPayload, MessageRelayPayload}
+import fr.acinq.eclair.wire.protocol.{BadOnion, Error, HasChannelId, HasTemporaryChannelId, LightningMessage, NodeAddress, OnionCodecs, OnionMessage, RoutingMessage, UnknownMessage, Warning}
 import scodec.bits.ByteVector
+import scodec.{Attempt, DecodeResult}
 
 import java.net.InetSocketAddress
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success}
 
 /**
  * This actor represents a logical peer. There is one [[Peer]] per unique remote node id at all time.
@@ -54,6 +59,8 @@ import scala.concurrent.ExecutionContext
 class Peer(val nodeParams: NodeParams, remoteNodeId: PublicKey, wallet: OnChainAddressGenerator, channelFactory: Peer.ChannelFactory) extends FSMDiagnosticActorLogging[Peer.State, Peer.Data] {
 
   import Peer._
+
+  private val messageRelayRateLimiter = RateLimiter.create(nodeParams.onionMessageRateLimitPerSecond)
 
   startWith(INSTANTIATING, Nothing)
 
@@ -245,6 +252,16 @@ class Peer(val nodeParams: NodeParams, remoteNodeId: PublicKey, wallet: OnChainA
         d.channels.values.toSet[ActorRef].foreach(_ ! INPUT_DISCONNECTED) // we deduplicate with toSet because there might be two entries per channel (tmp id and final id)
         gotoConnected(connectionReady, d.channels)
 
+      case Event(msg: OnionMessage, d: ConnectedData) =>
+        if (nodeParams.features.hasFeature(Features.OnionMessages) && messageRelayRateLimiter.tryAcquire()) {
+          relayOnionMessage(msg)
+        }
+        stay()
+
+      case Event(Peer.SendOnionMessage(toNodeId, msg), d: ConnectedData) if toNodeId == remoteNodeId =>
+        d.peerConnection ! msg
+        stay()
+
       case Event(unknownMsg: UnknownMessage, d: ConnectedData) if nodeParams.pluginMessageTags.contains(unknownMsg.tag) =>
         context.system.eventStream.publish(UnknownMessageReceived(self, remoteNodeId, unknownMsg, d.connectionInfo))
         stay()
@@ -252,6 +269,29 @@ class Peer(val nodeParams: NodeParams, remoteNodeId: PublicKey, wallet: OnChainA
       case Event(unhandledMsg: LightningMessage, _) =>
         log.warning("ignoring message {}", unhandledMsg)
         stay()
+    }
+  }
+
+  private def relayOnionMessage(msg: OnionMessage) = {
+    val packetType = Sphinx.MessagePacket(msg.onionRoutingPacket.payload.length.toInt)
+    val blindedPrivKateKey = Sphinx.RouteBlinding.derivePrivateKey(nodeParams.privateKey, msg.blindingKey)
+    packetType.peel(blindedPrivKateKey, ByteVector.empty, msg.onionRoutingPacket) match {
+      case Left(_: BadOnion) => () // We ignore bad messages
+      case Right(p@Sphinx.DecryptedPacket(payload, nextPacket, _)) => (OnionCodecs.perHopPayloadCodecByPacketType(packetType, p.isLastPacket).decode(payload.bits): @unchecked) match {
+        case Attempt.Successful(DecodeResult(relayPayload: MessageRelayPayload, _)) =>
+          Sphinx.RouteBlinding.decryptPayload(nodeParams.privateKey, msg.blindingKey, relayPayload.blindedTlv) match {
+            case Success((decrypted, nextBlindingKey)) =>
+              OnionCodecs.messageRelayNextCodec.decode(decrypted.bits) match {
+                case Attempt.Successful(DecodeResult(relayNext, _)) =>
+                  val toRelay = OnionMessage(relayNext.nextBlinding.getOrElse(nextBlindingKey), nextPacket)
+                  context.parent ! Peer.SendOnionMessage(relayNext.nextNodeId, toRelay)
+                case Attempt.Failure(_) => () // We ignore bad messages
+              }
+            case Failure(_) => () // We ignore bad messages
+          }
+        case Attempt.Successful(DecodeResult(finalPayload: MessageFinalPayload, _)) => () // We only relay messages
+        case Attempt.Failure(_) => () // We ignore bad messages
+      }
     }
   }
 
@@ -429,6 +469,8 @@ object Peer {
   object Connect {
     def apply(uri: NodeURI): Connect = new Connect(uri.nodeId, Some(uri.address))
   }
+
+  case class SendOnionMessage(nodeId: PublicKey, message: OnionMessage) extends PossiblyHarmful
 
   case class Disconnect(nodeId: PublicKey) extends PossiblyHarmful
   case class OpenChannel(remoteNodeId: PublicKey, fundingSatoshis: Satoshi, pushMsat: MilliSatoshi, channelType_opt: Option[SupportedChannelType], fundingTxFeeratePerKw_opt: Option[FeeratePerKw], channelFlags: Option[Byte], timeout_opt: Option[Timeout]) extends PossiblyHarmful {

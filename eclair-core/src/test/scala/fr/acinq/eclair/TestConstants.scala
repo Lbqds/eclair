@@ -32,6 +32,7 @@ import org.scalatest.Tag
 import scodec.bits.ByteVector
 
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import scala.concurrent.duration._
 
@@ -195,7 +196,8 @@ object TestConstants {
       enableTrampolinePayment = true,
       instanceId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
       balanceCheckInterval = 1 hour,
-      blockchainWatchdogSources = blockchainWatchdogSources
+      blockchainWatchdogSources = blockchainWatchdogSources,
+      onionMessageRateLimitPerSecond = 10
     )
 
     def channelParams: LocalParams = Peer.makeChannelParams(
@@ -321,7 +323,8 @@ object TestConstants {
       enableTrampolinePayment = true,
       instanceId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
       balanceCheckInterval = 1 hour,
-      blockchainWatchdogSources = blockchainWatchdogSources
+      blockchainWatchdogSources = blockchainWatchdogSources,
+      onionMessageRateLimitPerSecond = 10
     )
 
     def channelParams: LocalParams = Peer.makeChannelParams(

@@ -24,6 +24,7 @@ import fr.acinq.eclair.wire.protocol._
 import grizzled.slf4j.Logging
 import scodec.Attempt
 import scodec.bits.ByteVector
+import scodec.codecs.provide
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
@@ -272,7 +273,7 @@ object Sphinx extends Logging {
      * When an invalid onion is received, its hash should be included in the failure message.
      */
     def hash(onion: protocol.OnionRoutingPacket): ByteVector32 =
-      Crypto.sha256(OnionCodecs.onionRoutingPacketCodec(onion.payload.length.toInt).encode(onion).require.toByteVector)
+      Crypto.sha256(OnionCodecs.onionRoutingPacketCodec(provide(onion.payload.length.toInt)).encode(onion).require.toByteVector)
 
   }
 
@@ -290,6 +291,11 @@ object Sphinx extends Logging {
   object TrampolinePacket extends OnionRoutingPacket[Onion.TrampolinePacket] {
     override val PayloadLength = 400
   }
+
+  /**
+   * A message onion packet is used when requesting/sending an invoice from/to a remote node when using offers (BOLT12).
+   */
+  case class MessagePacket(PayloadLength: Int) extends OnionRoutingPacket[Onion.MessagePacket]
 
   /**
    * A properly decrypted failure from a node in the route.

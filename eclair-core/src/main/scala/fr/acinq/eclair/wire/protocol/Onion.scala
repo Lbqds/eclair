@@ -175,6 +175,14 @@ object OnionTlv {
   /** Pre-image included by the sender of a payment in case of a donation */
   case class KeySend(paymentPreimage: ByteVector32) extends OnionTlv
 
+  case class ReplyHop(nodeId: PublicKey, encTlv: ByteVector)
+
+  case class ReplyPath(firstNodeId: PublicKey, blinding: PublicKey, path: Seq[ReplyHop]) extends OnionTlv
+
+  case class EncTlv(bytes: ByteVector) extends OnionTlv
+
+  case class Blinding(blindingKey: PublicKey) extends OnionTlv
+
 }
 
 object Onion {
@@ -217,6 +225,9 @@ object Onion {
 
   /** See [[fr.acinq.eclair.crypto.Sphinx.TrampolinePacket]]. */
   sealed trait TrampolinePacket extends PacketType
+
+  /** See [[fr.acinq.eclair.crypto.Sphinx.MessagePacket]]. */
+  sealed trait MessagePacket extends PacketType
 
   /** Per-hop payload from an HTLC's payment onion (after decryption and decoding). */
   sealed trait PerHopPayload
@@ -281,6 +292,17 @@ object Onion {
     override val paymentPreimage = records.get[KeySend].map(_.paymentPreimage)
   }
 
+  case class MessageRelayPayload(records: TlvStream[OnionTlv]) extends MessagePacket with TlvFormat {
+    val blindedTlv: ByteVector = records.get[EncTlv].get.bytes
+  }
+
+  case class MessageFinalPayload(records: TlvStream[OnionTlv]) extends MessagePacket with TlvFormat
+
+  case class MessageRelayNext(records: TlvStream[OnionTlv]) {
+    val nextNodeId: PublicKey = records.get[OutgoingNodeId].get.nodeId
+    val nextBlinding: Option[PublicKey] = records.get[Blinding].map(_.blindingKey)
+  }
+
   def createNodeRelayPayload(amount: MilliSatoshi, expiry: CltvExpiry, nextNodeId: PublicKey): NodeRelayPayload =
     NodeRelayPayload(TlvStream(AmountToForward(amount), OutgoingCltv(expiry), OutgoingNodeId(nextNodeId)))
 
@@ -310,15 +332,18 @@ object OnionCodecs {
   import scodec.codecs._
   import scodec.{Attempt, Codec, DecodeResult, Decoder, Err}
 
-  def onionRoutingPacketCodec(payloadLength: Int): Codec[OnionRoutingPacket] = (
-    ("version" | uint8) ::
-      ("publicKey" | bytes(33)) ::
-      ("onionPayload" | bytes(payloadLength)) ::
-      ("hmac" | bytes32)).as[OnionRoutingPacket]
+  def onionRoutingPacketCodec(payloadLength: Codec[Int]): Codec[OnionRoutingPacket] = (
+    variableSizePrefixedBytes(payloadLength,
+      ("version" | uint8) ~
+        ("publicKey" | bytes(33)),
+      ("onionPayload" | bytes)) ~
+      ("hmac" | bytes32) flattenLeftPairs).as[OnionRoutingPacket]
 
-  val paymentOnionPacketCodec: Codec[OnionRoutingPacket] = onionRoutingPacketCodec(Sphinx.PaymentPacket.PayloadLength)
+  val paymentOnionPacketCodec: Codec[OnionRoutingPacket] = onionRoutingPacketCodec(provide(Sphinx.PaymentPacket.PayloadLength))
 
-  val trampolineOnionPacketCodec: Codec[OnionRoutingPacket] = onionRoutingPacketCodec(Sphinx.TrampolinePacket.PayloadLength)
+  val trampolineOnionPacketCodec: Codec[OnionRoutingPacket] = onionRoutingPacketCodec(provide(Sphinx.TrampolinePacket.PayloadLength))
+
+  val messageOnionPacketCodec: Codec[OnionRoutingPacket] = onionRoutingPacketCodec(uint16.xmap(_ - 66, _ + 66))
 
   /**
    * The 1.1 BOLT spec changed the onion frame format to use variable-length per-hop payloads.
@@ -412,9 +437,47 @@ object OnionCodecs {
     case FinalTlvPayload(tlvs) => tlvs
   })
 
+  val replyHopCodec: Codec[ReplyHop] = (("nodeId" | publicKey) :: ("encTlv" | variableSizeBytes(uint16, bytes))).as[ReplyHop]
+
+  val replyPathCodec: Codec[ReplyPath] = (("firstNodeId" | publicKey) :: ("blinding" | publicKey) :: ("path" | list(replyHopCodec).xmap[Seq[ReplyHop]](_.toSeq, _.toList))).as[ReplyPath]
+
+  val encTlvCodec: Codec[EncTlv] = bytes.as[EncTlv]
+
+  private val messageTlvCodec = discriminated[OnionTlv].by(varint)
+    .typecase(UInt64(8), replyPathCodec)
+    .typecase(UInt64(10), encTlvCodec)
+
+  val messagePerHopPayloadCodec: Codec[TlvStream[OnionTlv]] = TlvCodecs.lengthPrefixedTlvStream[OnionTlv](messageTlvCodec).complete
+
+  val messageRelayPayloadCodec: Codec[MessageRelayPayload] = messagePerHopPayloadCodec.narrow({
+    case tlvs if tlvs.get[EncTlv].isEmpty => Attempt.failure(MissingRequiredTlv(UInt64(10)))
+    case tlvs => Attempt.successful(MessageRelayPayload(tlvs))
+  }, {
+    case MessageRelayPayload(tlvs) => tlvs
+  })
+
+  val messageFinalPayloadCodec: Codec[MessageFinalPayload] = messagePerHopPayloadCodec.narrow({
+    case tlvs => Attempt.successful(MessageFinalPayload(tlvs))
+  }, {
+    case MessageFinalPayload(tlvs) => tlvs
+  })
+
   def perHopPayloadCodecByPacketType[T <: PacketType](packetType: Sphinx.OnionRoutingPacket[T], isLastPacket: Boolean): Codec[PacketType] = packetType match {
     case Sphinx.PaymentPacket => if (isLastPacket) finalPerHopPayloadCodec.upcast[PacketType] else channelRelayPerHopPayloadCodec.upcast[PacketType]
     case Sphinx.TrampolinePacket => if (isLastPacket) finalPerHopPayloadCodec.upcast[PacketType] else nodeRelayPerHopPayloadCodec.upcast[PacketType]
+    case Sphinx.MessagePacket(payloadLength) => if (isLastPacket) messageFinalPayloadCodec.upcast[PacketType] else messageRelayPayloadCodec.upcast[PacketType]
   }
 
+  private val blindingKey: Codec[Blinding] = variableSizeBytesLong(varintoverflow, "blinding" | publicKey).as[Blinding]
+
+  val messageRelayNextCodec: Codec[MessageRelayNext] = TlvCodecs.lengthPrefixedTlvStream[OnionTlv](
+    discriminated[OnionTlv].by(varint)
+      .typecase(UInt64(4), outgoingNodeId)
+      .typecase(UInt64(12), blindingKey)).complete
+    .narrow({
+      case tlvs if tlvs.get[OutgoingNodeId].isEmpty => Attempt.failure(MissingRequiredTlv(UInt64(4)))
+      case tlvs => Attempt.successful(MessageRelayNext(tlvs))
+    }, {
+      case MessageRelayNext(tlvs) => tlvs
+    })
 }
