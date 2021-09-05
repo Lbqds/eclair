@@ -20,12 +20,12 @@ import fr.acinq.bitcoin.PrivateKey
 import fr.acinq.bitcoin.{Block, ByteVector32, Satoshi, SatoshiLong, Script}
 import fr.acinq.eclair.FeatureSupport.{Mandatory, Optional}
 import fr.acinq.eclair.Features._
-import fr.acinq.eclair.blockchain.fee.{FeeEstimator, FeeTargets, FeeratesPerKw, OnChainFeeConf, _}
+import fr.acinq.eclair.blockchain.fee._
 import fr.acinq.eclair.channel.LocalParams
 import fr.acinq.eclair.crypto.keymanager.{LocalChannelKeyManager, LocalNodeKeyManager}
 import fr.acinq.eclair.io.{Peer, PeerConnection}
 import fr.acinq.eclair.payment.relay.Relayer.{RelayFees, RelayParams}
-import fr.acinq.eclair.router.Router.RouterConf
+import fr.acinq.eclair.router.Router.{PathFindingConf, RouterConf}
 import fr.acinq.eclair.wire.protocol.{Color, EncodingType, NodeAddress, OnionRoutingPacket}
 import org.scalatest.Tag
 import scodec.bits.ByteVector
@@ -71,6 +71,14 @@ object TestConstants {
     override def name: String = "plugin for testing"
     // @formatter:on
   }
+
+  val blockchainWatchdogSources = Seq(
+    "bitcoinheaders.net",
+    "blockcypher.com",
+    "blockstream.info",
+    "mempool.space"
+  )
+
 
   object Alice {
     val seed = new ByteVector32("01" * 32)
@@ -121,7 +129,7 @@ object TestConstants {
       toRemoteDelay = CltvExpiryDelta(144),
       maxToLocalDelay = CltvExpiryDelta(1000),
       relayParams = RelayParams(
-         publicChannelFees = RelayFees(
+        publicChannelFees = RelayFees(
           feeBase = 546000 msat,
           feeProportionalMillionths = 10),
         privateChannelFees = RelayFees(
@@ -153,7 +161,6 @@ object TestConstants {
         maxRebroadcastDelay = 5 seconds
       ),
       routerConf = RouterConf(
-        randomizeRouteSelection = false,
         channelExcludeDuration = 60 seconds,
         routerBroadcastInterval = 5 seconds,
         networkStatsRefreshInterval = 1 hour,
@@ -161,24 +168,27 @@ object TestConstants {
         encodingType = EncodingType.COMPRESSED_ZLIB,
         channelRangeChunkSize = 20,
         channelQueryChunkSize = 5,
-        searchMaxFeeBase = 21 sat,
-        searchMaxFeePct = 0.03,
-        searchMaxCltv = CltvExpiryDelta(2016),
-        searchMaxRouteLength = 20,
-        searchRatioBase = 1.0,
-        searchRatioCltv = 0.0,
-        searchRatioChannelAge = 0.0,
-        searchRatioChannelCapacity = 0.0,
-        searchHopCostBase = 0 msat,
-        searchHopCostMillionths = 0,
-        mppMinPartAmount = 15000000 msat,
-        mppMaxParts = 10
+        pathFindingConf = PathFindingConf(
+          randomizeRouteSelection = false,
+          searchMaxFeeBase = 21 sat,
+          searchMaxFeePct = 0.03,
+          searchMaxCltv = CltvExpiryDelta(2016),
+          searchMaxRouteLength = 20,
+          searchRatioBase = 1.0,
+          searchRatioCltv = 0.0,
+          searchRatioChannelAge = 0.0,
+          searchRatioChannelCapacity = 0.0,
+          searchHopCostBase = 0 msat,
+          searchHopCostMillionths = 0,
+          mppMinPartAmount = 15000000 msat,
+          mppMaxParts = 10)
       ),
       socksProxy_opt = None,
       maxPaymentAttempts = 5,
       enableTrampolinePayment = true,
       instanceId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-      balanceCheckInterval = 1 hour
+      balanceCheckInterval = 1 hour,
+      blockchainWatchdogSources = blockchainWatchdogSources
     )
 
     def channelParams: LocalParams = Peer.makeChannelParams(
@@ -270,7 +280,6 @@ object TestConstants {
         maxRebroadcastDelay = 5 seconds
       ),
       routerConf = RouterConf(
-        randomizeRouteSelection = false,
         channelExcludeDuration = 60 seconds,
         routerBroadcastInterval = 5 seconds,
         networkStatsRefreshInterval = 1 hour,
@@ -278,24 +287,27 @@ object TestConstants {
         encodingType = EncodingType.UNCOMPRESSED,
         channelRangeChunkSize = 20,
         channelQueryChunkSize = 5,
-        searchMaxFeeBase = 21 sat,
-        searchMaxFeePct = 0.03,
-        searchMaxCltv = CltvExpiryDelta(2016),
-        searchMaxRouteLength = 20,
-        searchRatioBase = 1.0,
-        searchRatioCltv = 0.0,
-        searchRatioChannelAge = 0.0,
-        searchRatioChannelCapacity = 0.0,
-        searchHopCostBase = 0 msat,
-        searchHopCostMillionths = 0,
-        mppMinPartAmount = 15000000 msat,
-        mppMaxParts = 10
+        pathFindingConf = PathFindingConf(
+          randomizeRouteSelection = false,
+          searchMaxFeeBase = 21 sat,
+          searchMaxFeePct = 0.03,
+          searchMaxCltv = CltvExpiryDelta(2016),
+          searchMaxRouteLength = 20,
+          searchRatioBase = 1.0,
+          searchRatioCltv = 0.0,
+          searchRatioChannelAge = 0.0,
+          searchRatioChannelCapacity = 0.0,
+          searchHopCostBase = 0 msat,
+          searchHopCostMillionths = 0,
+          mppMinPartAmount = 15000000 msat,
+          mppMaxParts = 10)
       ),
       socksProxy_opt = None,
       maxPaymentAttempts = 5,
       enableTrampolinePayment = true,
       instanceId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-      balanceCheckInterval = 1 hour
+      balanceCheckInterval = 1 hour,
+      blockchainWatchdogSources = blockchainWatchdogSources
     )
 
     def channelParams: LocalParams = Peer.makeChannelParams(

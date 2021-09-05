@@ -20,6 +20,7 @@ import com.google.common.base.Charsets
 import fr.acinq.bitcoin.{PrivateKey, PublicKey}
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Satoshi}
 import fr.acinq.eclair.blockchain.fee.FeeratePerKw
+import fr.acinq.eclair.channel.ChannelType
 import fr.acinq.eclair.router.Announcements
 import fr.acinq.eclair.{CltvExpiry, CltvExpiryDelta, Features, MilliSatoshi, ShortChannelId, UInt64}
 import scodec.bits.ByteVector
@@ -103,7 +104,8 @@ case class OpenChannel(chainHash: ByteVector32,
                        firstPerCommitmentPoint: PublicKey,
                        channelFlags: Byte,
                        tlvStream: TlvStream[OpenChannelTlv] = TlvStream.empty) extends ChannelMessage with HasTemporaryChannelId with HasChainHash {
-  val upfrontShutdownScript_opt: Option[ByteVector] = tlvStream.get[ChannelTlv.UpfrontShutdownScript].map(_.script)
+  val upfrontShutdownScript_opt: Option[ByteVector] = tlvStream.get[ChannelTlv.UpfrontShutdownScriptTlv].map(_.script)
+  val channelType_opt: Option[ChannelType] = tlvStream.get[ChannelTlv.ChannelTypeTlv].map(_.channelType)
 }
 
 case class AcceptChannel(temporaryChannelId: ByteVector32,
@@ -121,7 +123,8 @@ case class AcceptChannel(temporaryChannelId: ByteVector32,
                          htlcBasepoint: PublicKey,
                          firstPerCommitmentPoint: PublicKey,
                          tlvStream: TlvStream[AcceptChannelTlv] = TlvStream.empty) extends ChannelMessage with HasTemporaryChannelId {
-  val upfrontShutdownScript_opt: Option[ByteVector] = tlvStream.get[ChannelTlv.UpfrontShutdownScript].map(_.script)
+  val upfrontShutdownScript_opt: Option[ByteVector] = tlvStream.get[ChannelTlv.UpfrontShutdownScriptTlv].map(_.script)
+  val channelType_opt: Option[ChannelType] = tlvStream.get[ChannelTlv.ChannelTypeTlv].map(_.channelType)
 }
 
 case class FundingCreated(temporaryChannelId: ByteVector32,
@@ -265,6 +268,8 @@ case class ChannelUpdate(signature: ByteVector64,
   require(((messageFlags & 1) != 0) == htlcMaximumMsat.isDefined, "htlcMaximumMsat is not consistent with messageFlags")
 
   def isNode1 = Announcements.isNode1(channelFlags)
+
+  def toStringShort: String = s"cltvExpiryDelta=$cltvExpiryDelta,feeBase=$feeBaseMsat,feeProportionalMillionths=$feeProportionalMillionths"
 }
 
 // @formatter:off

@@ -28,6 +28,7 @@ import fr.acinq.eclair.payment.ChannelPaymentRelayed
 import fr.acinq.eclair.router.NodeUpdated
 import fr.acinq.eclair.KotlinUtils._
 import scodec.bits.ByteVector
+
 import scala.concurrent.duration.DurationInt
 
 /**
@@ -46,7 +47,7 @@ object WeakEntropyPool {
   // @formatter:off
   sealed trait Command
   private case object FlushEntropy extends Command
-  private case class WrappedNewBlock(block: Block) extends Command
+  private case class WrappedNewBlock(blockHash: ByteVector32) extends Command
   private case class WrappedPaymentRelayed(paymentHash: ByteVector32, relayedAt: Long) extends Command
   private case class WrappedPeerConnected(nodeId: PublicKey) extends Command
   private case class WrappedChannelSignature(wtxid: ByteVector32) extends Command
@@ -55,7 +56,7 @@ object WeakEntropyPool {
 
   def apply(collector: EntropyCollector): Behavior[Command] = {
     Behaviors.setup { context =>
-      context.system.eventStream ! EventStream.Subscribe(context.messageAdapter[NewBlock](e => WrappedNewBlock(e.block)))
+      context.system.eventStream ! EventStream.Subscribe(context.messageAdapter[NewBlock](e => WrappedNewBlock(e.blockHash)))
       context.system.eventStream ! EventStream.Subscribe(context.messageAdapter[ChannelPaymentRelayed](e => WrappedPaymentRelayed(e.paymentHash, e.timestamp)))
       context.system.eventStream ! EventStream.Subscribe(context.messageAdapter[PeerConnected](e => WrappedPeerConnected(e.nodeId)))
       context.system.eventStream ! EventStream.Subscribe(context.messageAdapter[NodeUpdated](e => WrappedNodeUpdated(e.ann.signature)))
@@ -78,7 +79,7 @@ object WeakEntropyPool {
             Behaviors.same
         }
 
-      case WrappedNewBlock(block) => collecting(collector, collect(entropy_opt, block.hash ++ ByteVector.fromLong(System.currentTimeMillis())))
+      case WrappedNewBlock(blockHash) => collecting(collector, collect(entropy_opt, blockHash ++ ByteVector.fromLong(System.currentTimeMillis())))
 
       case WrappedPaymentRelayed(paymentHash, relayedAt) => collecting(collector, collect(entropy_opt, paymentHash ++ ByteVector.fromLong(relayedAt)))
 
