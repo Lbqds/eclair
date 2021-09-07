@@ -142,8 +142,8 @@ object TestConstants {
           feeProportionalMillionths = 30)),
       reserveToFundingRatio = 0.01, // note: not used (overridden below)
       maxReserveToFundingRatio = 0.05,
-      outdatedCommitmentStrategy = OutdatedCommitmentStrategy.AlwaysRequestRemoteClose,
-      unhandledExceptionStrategy = UnhandledExceptionStrategy.LocalForceClose,
+      outdatedCommitmentStrategy = OutdatedCommitmentStrategy.RemoteClose,
+      unhandledExceptionStrategy = UnhandledExceptionStrategy.LocalClose,
       db = TestDatabases.inMemoryDb(),
       revocationTimeout = 20 seconds,
       autoReconnect = false,
@@ -270,8 +270,8 @@ object TestConstants {
           feeProportionalMillionths = 30)),
       reserveToFundingRatio = 0.01, // note: not used (overridden below)
       maxReserveToFundingRatio = 0.05,
-      outdatedCommitmentStrategy = OutdatedCommitmentStrategy.AlwaysRequestRemoteClose,
-      unhandledExceptionStrategy = UnhandledExceptionStrategy.LocalForceClose,
+      outdatedCommitmentStrategy = OutdatedCommitmentStrategy.RemoteClose,
+      unhandledExceptionStrategy = UnhandledExceptionStrategy.LocalClose,
       db = TestDatabases.inMemoryDb(),
       revocationTimeout = 20 seconds,
       autoReconnect = false,

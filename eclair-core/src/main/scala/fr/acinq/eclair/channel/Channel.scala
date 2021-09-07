@@ -137,7 +137,7 @@ object Channel {
      * that we are using an outdated commitment.
      * This may be the best choice for smaller loosely administered nodes.
      */
-    case object AlwaysRequestRemoteClose extends OutdatedCommitmentStrategy
+    case object RemoteClose extends OutdatedCommitmentStrategy
     /**
      * If the node was just restarted, just log an error and stop the app. The goal is to prevent unwanted mass
      * force-close of channels if we accidentally restarted the node with an outdated backup. After a few minutes, we
@@ -145,7 +145,7 @@ object Channel {
      * where any peer can remotely stop our node.
      * This strategy may be better suited for larger nodes, closely administered.
      */
-    case object HaltIfJustRestarted extends OutdatedCommitmentStrategy
+    case object Stop extends OutdatedCommitmentStrategy
   }
   // @formatter:on
 
@@ -154,9 +154,9 @@ object Channel {
   sealed trait UnhandledExceptionStrategy
   object UnhandledExceptionStrategy {
     /** Ask our counterparty to close the channel. This may be the best choice for smaller loosely administered nodes.*/
-    case object LocalForceClose extends UnhandledExceptionStrategy
+    case object LocalClose extends UnhandledExceptionStrategy
     /** Just log an error and stop the node. May be better for larger nodes, to prevent unwanted mass force-close.*/
-    case object LogAndStop extends UnhandledExceptionStrategy
+    case object Stop extends UnhandledExceptionStrategy
   }
   // @formatter:on
 
@@ -2311,9 +2311,9 @@ class Channel(val nodeParams: NodeParams, val wallet: EclairWallet, remoteNodeId
           case _ =>
             // unhandled exception: we apply the configured strategy
             nodeParams.unhandledExceptionStrategy match {
-              case UnhandledExceptionStrategy.LocalForceClose =>
+              case UnhandledExceptionStrategy.LocalClose =>
                 spendLocalCurrent(dd) sending error
-              case UnhandledExceptionStrategy.LogAndStop =>
+              case UnhandledExceptionStrategy.Stop =>
                 log.error("stopping the node (unhandled exception")
                 System.exit(1)
                 stop(FSM.Shutdown)
@@ -2561,11 +2561,11 @@ class Channel(val nodeParams: NodeParams, val wallet: EclairWallet, remoteNodeId
 
   private def handleOutdatedCommitment(channelReestablish: ChannelReestablish, d: HasCommitments) = {
     nodeParams.outdatedCommitmentStrategy match {
-      case OutdatedCommitmentStrategy.HaltIfJustRestarted if ManagementFactory.getRuntimeMXBean.getUptime.millis < 10.minutes =>
+      case OutdatedCommitmentStrategy.Stop if ManagementFactory.getRuntimeMXBean.getUptime.millis < 10.minutes =>
         log.error("we just restarted and may have an outdated commitment! stopping the node")
         System.exit(1)
         stop(FSM.Shutdown)
-      case OutdatedCommitmentStrategy.AlwaysRequestRemoteClose =>
+      case OutdatedCommitmentStrategy.RemoteClose =>
         val exc = PleasePublishYourCommitment(d.channelId)
         val error = Error(d.channelId, exc.getMessage)
         goto(WAIT_FOR_REMOTE_PUBLISH_FUTURE_COMMITMENT) using DATA_WAIT_FOR_REMOTE_PUBLISH_FUTURE_COMMITMENT(d.commitments, channelReestablish) storing() sending error

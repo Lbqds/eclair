@@ -350,13 +350,13 @@ object NodeParams extends Logging {
     }
 
     val outdatedCommitmentStrategy = config.getString("outdated-commitment-strategy") match {
-      case "halt-if-just-restarted" => OutdatedCommitmentStrategy.HaltIfJustRestarted
-      case "always-request-remote-close" => OutdatedCommitmentStrategy.AlwaysRequestRemoteClose
+      case "remote-close" => OutdatedCommitmentStrategy.RemoteClose
+      case "stop" => OutdatedCommitmentStrategy.Stop
     }
 
     val unhandledExceptionStrategy = config.getString("unhandled-exception-strategy") match {
-        case "local-force-close" => UnhandledExceptionStrategy.LocalForceClose
-        case "log-and-stop" => UnhandledExceptionStrategy.LogAndStop
+        case "local-close" => UnhandledExceptionStrategy.LocalClose
+        case "stop" => UnhandledExceptionStrategy.Stop
       }
 
     val routerSyncEncodingType = config.getString("router.sync.encoding-type") match {
