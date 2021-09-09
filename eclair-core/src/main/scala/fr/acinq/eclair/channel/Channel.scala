@@ -2314,7 +2314,7 @@ class Channel(val nodeParams: NodeParams, val wallet: EclairWallet, remoteNodeId
               case UnhandledExceptionStrategy.LocalClose =>
                 spendLocalCurrent(dd) sending error
               case UnhandledExceptionStrategy.Stop =>
-                log.error("stopping the node (unhandled exception")
+                log.error("unhandled exception: standard procedure would be to force-close the channel, but eclair has been configured to halt instead.")
                 System.exit(1)
                 stop(FSM.Shutdown)
             }
@@ -2562,10 +2562,10 @@ class Channel(val nodeParams: NodeParams, val wallet: EclairWallet, remoteNodeId
   private def handleOutdatedCommitment(channelReestablish: ChannelReestablish, d: HasCommitments) = {
     nodeParams.outdatedCommitmentStrategy match {
       case OutdatedCommitmentStrategy.Stop if ManagementFactory.getRuntimeMXBean.getUptime.millis < 10.minutes =>
-        log.error("we just restarted and may have an outdated commitment! stopping the node")
+        log.error("we just restarted and may have an outdated commitment: standard procedure would be to request our peer to force-close, but eclair has been configured to halt instead. Please ensure your database is up-to-date and restart eclair.")
         System.exit(1)
         stop(FSM.Shutdown)
-      case OutdatedCommitmentStrategy.RemoteClose =>
+      case _ =>
         val exc = PleasePublishYourCommitment(d.channelId)
         val error = Error(d.channelId, exc.getMessage)
         goto(WAIT_FOR_REMOTE_PUBLISH_FUTURE_COMMITMENT) using DATA_WAIT_FOR_REMOTE_PUBLISH_FUTURE_COMMITMENT(d.commitments, channelReestablish) storing() sending error
