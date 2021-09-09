@@ -93,6 +93,7 @@ object TestConstants {
       alias = "alice",
       color = Color(1, 2, 3),
       publicAddresses = NodeAddress.fromParts("localhost", 9731).get :: Nil,
+      torAddress_opt = None,
       features = Features(
         Map[Feature, FeatureSupport](
           OptionDataLossProtect -> Optional,
@@ -215,6 +216,7 @@ object TestConstants {
       alias = "bob",
       color = Color(4, 5, 6),
       publicAddresses = NodeAddress.fromParts("localhost", 9732).get :: Nil,
+      torAddress_opt = None,
       features = Features(
         OptionDataLossProtect -> Optional,
         ChannelRangeQueries -> Optional,
