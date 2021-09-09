@@ -16,9 +16,9 @@
 
 package fr.acinq.eclair
 
-import com.typesafe.config.{Config, ConfigFactory}
-import fr.acinq.bitcoin.Block
+import com.typesafe.config.{Config, ConfigFactory, ConfigResolveOptions}
 import fr.acinq.bitcoin.PublicKey
+import fr.acinq.bitcoin.{Block, SatoshiLong}
 import fr.acinq.eclair.FeatureSupport.{Mandatory, Optional}
 import fr.acinq.eclair.Features._
 import fr.acinq.eclair.blockchain.fee.{FeeratePerByte, FeeratePerKw, FeerateTolerance}
@@ -34,7 +34,7 @@ import scala.util.Try
 
 class StartupSpec extends AnyFunSuite {
 
-  val defaultConf = ConfigFactory.parseResources("reference.conf").getConfig("eclair")
+  val defaultConf = ConfigFactory.load("reference.conf").getConfig("eclair")
 
   def makeNodeParamsWithDefaults(conf: Config): NodeParams = {
     val blockCount = new AtomicLong(0)

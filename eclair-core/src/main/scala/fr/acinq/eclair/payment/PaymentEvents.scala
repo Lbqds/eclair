@@ -232,3 +232,12 @@ object PaymentFailure {
   }
 
 }
+
+case class PathFindingExperimentMetrics(amount: MilliSatoshi,
+                                        fees: MilliSatoshi,
+                                        status: String,
+                                        duration: Long,
+                                        timestamp: Long,
+                                        isMultiPart: Boolean,
+                                        experimentName: String,
+                                        recipientNodeId: PublicKey)

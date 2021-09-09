@@ -23,6 +23,7 @@ import scala.jdk.CollectionConverters._
 import org.scalatest.Outcome
 import org.scalatest.funsuite.FixtureAnyFunSuiteLike
 
+import java.util
 import scala.concurrent.duration._
 
 class RestoreSpec extends TestKitBaseClass with FixtureAnyFunSuiteLike with ChannelStateTestsBase {
@@ -116,7 +117,7 @@ class RestoreSpec extends TestKitBaseClass with FixtureAnyFunSuiteLike with Chan
       pub =>
         val channelKeyPath = ChannelKeyManager.keyPath(pub)
         val localPubkey = Generators.derivePubKey(keyManager.paymentPoint(channelKeyPath).getPublicKey, ce.myCurrentPerCommitmentPoint)
-        localPubkey.hash160 == pubKeyHash
+        pubKeyHash.contentEquals(localPubkey.hash160())
     } get
 
     // compute our to-remote pubkey
@@ -144,7 +145,7 @@ class RestoreSpec extends TestKitBaseClass with FixtureAnyFunSuiteLike with Chan
     val aliceListener = TestProbe()
     channelUpdateListener.setAutoPilot(new testkit.TestActor.AutoPilot {
       override def run(sender: ActorRef, msg: Any): TestActor.AutoPilot = msg match {
-        case u: ChannelUpdateParametersChanged if Announcements.isNode1(u.channelUpdate.channelFlags) == Announcements.isNode1(Alice.nodeParams.nodeId, Bob.nodeParams.nodeId) =>
+        case u: ChannelUpdateParametersChanged if u.channelUpdate.channelFlags.isNode1 == Announcements.isNode1(Alice.nodeParams.nodeId, Bob.nodeParams.nodeId) =>
           aliceListener.ref.tell(msg, sender)
           TestActor.KeepRunning
         case _ => TestActor.KeepRunning

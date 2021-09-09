@@ -18,7 +18,7 @@ package fr.acinq.eclair.channel.states.g
 
 import akka.testkit.TestProbe
 import fr.acinq.bitcoin.{ByteVector32, ByteVector64, Satoshi, SatoshiLong}
-import fr.acinq.eclair.KotlinUtils.{OrderedSatoshi, javaout2scala}
+import fr.acinq.eclair.KotlinUtils.{OrderedSatoshi, javaout2scala, scodecbytevector2acinqbytevector}
 import fr.acinq.eclair.blockchain.bitcoind.ZmqWatcher._
 import fr.acinq.eclair.blockchain.fee.{FeeratePerKw, FeeratesPerKw}
 import fr.acinq.eclair.channel.Helpers.Closing
@@ -133,8 +133,8 @@ class NegotiatingStateSpec extends TestKitBaseClass with FixtureAnyFunSuiteLike 
     if (alice.stateData.asInstanceOf[DATA_NEGOTIATING].commitments.channelFeatures.hasFeature(Features.OptionUpfrontShutdownScript)) {
       // check that the closing tx uses Alice and Bob's default closing scripts
       val closingTx = alice.stateData.asInstanceOf[DATA_NEGOTIATING].closingTxProposed.last.head.unsignedTx.tx
-      val expectedLocalScript = alice.stateData.asInstanceOf[DATA_NEGOTIATING].commitments.localParams.defaultFinalScriptPubKey
-      val expectedRemoteScript = bob.stateData.asInstanceOf[DATA_NEGOTIATING].commitments.localParams.defaultFinalScriptPubKey
+      val expectedLocalScript: fr.acinq.bitcoin.ByteVector = alice.stateData.asInstanceOf[DATA_NEGOTIATING].commitments.localParams.defaultFinalScriptPubKey
+      val expectedRemoteScript: fr.acinq.bitcoin.ByteVector = bob.stateData.asInstanceOf[DATA_NEGOTIATING].commitments.localParams.defaultFinalScriptPubKey
       assert(closingTx.txOut.map(_.publicKeyScript).toSet === Set(expectedLocalScript, expectedRemoteScript))
     }
     alice2bob.forward(bob)
