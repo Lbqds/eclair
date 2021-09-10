@@ -40,7 +40,7 @@ object Scripts {
 
   private def htlcRemoteSighash(commitmentFormat: CommitmentFormat): Int = commitmentFormat match {
     case DefaultCommitmentFormat => SIGHASH_ALL
-    case AnchorOutputsCommitmentFormat => SIGHASH_SINGLE | SIGHASH_ANYONECANPAY
+    case _: AnchorOutputsCommitmentFormat => SIGHASH_SINGLE | SIGHASH_ANYONECANPAY
   }
 
   def multiSig2of2(pubkey1: PublicKey, pubkey2: PublicKey): Seq[ScriptElt] =
@@ -188,7 +188,7 @@ object Scripts {
   def htlcOffered(localHtlcPubkey: PublicKey, remoteHtlcPubkey: PublicKey, revocationPubKey: PublicKey, paymentHash: Array[Byte], commitmentFormat: CommitmentFormat): Seq[ScriptElt] = {
     val addCsvDelay = commitmentFormat match {
       case DefaultCommitmentFormat => false
-      case AnchorOutputsCommitmentFormat => true
+      case _: AnchorOutputsCommitmentFormat => true
     }
     // @formatter:off
     // To you with revocation key
@@ -241,7 +241,7 @@ object Scripts {
   def htlcReceived(localHtlcPubkey: PublicKey, remoteHtlcPubkey: PublicKey, revocationPubKey: PublicKey, paymentHash: Array[Byte], lockTime: CltvExpiry, commitmentFormat: CommitmentFormat): Seq[ScriptElt] = {
     val addCsvDelay = commitmentFormat match {
       case DefaultCommitmentFormat => false
-      case AnchorOutputsCommitmentFormat => true
+      case _: AnchorOutputsCommitmentFormat => true
     }
     // @formatter:off
     // To you with revocation key
