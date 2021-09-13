@@ -44,8 +44,9 @@ import fr.acinq.eclair.payment.relay.Relayer.UsableBalance
 import fr.acinq.eclair.payment.send.MultiPartPaymentLifecycle.PreimageReceived
 import fr.acinq.eclair.payment.send.PaymentInitiator.SendPaymentToRouteResponse
 import fr.acinq.eclair.router.Router.PredefinedNodeRoute
-import fr.acinq.eclair.router.{NetworkStats, Stats}
-import fr.acinq.eclair.wire.protocol.{Color, NodeAddress}
+import fr.acinq.eclair.router.{NetworkStats, Router, Stats}
+import fr.acinq.eclair.wire.protocol.{ChannelUpdate, Color, NodeAddress}
+import org.json4s.JsonAST.{JArray, JString}
 import org.mockito.scalatest.IdiomaticMockito
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -267,8 +268,8 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
   }
 
   test("'open' channels with bad channelType") {
-    val nodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
-    val channelId = ByteVector32(hex"56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
+    val nodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val channelId = ByteVector32.fromValidHex("56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
 
     val eclair = mock[Eclair]
     val mockService = new MockService(eclair)
@@ -284,8 +285,8 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
   }
 
   test("'open' channels with standard channelType") {
-    val nodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
-    val channelId = ByteVector32(hex"56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
+    val nodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val channelId = ByteVector32.fromValidHex("56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
 
     val eclair = mock[Eclair]
     eclair.open(any, any, any, any, any, any, any)(any[Timeout]) returns Future.successful(ChannelOpened(channelId))
@@ -304,8 +305,8 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
   }
 
   test("'open' channels with static_remotekey channelType") {
-    val nodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
-    val channelId = ByteVector32(hex"56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
+    val nodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val channelId = ByteVector32.fromValidHex("56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
 
     val eclair = mock[Eclair]
     eclair.open(any, any, any, any, any, any, any)(any[Timeout]) returns Future.successful(ChannelOpened(channelId))
@@ -324,8 +325,8 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
   }
 
   test("'open' channels with anchor_outputs channelType") {
-    val nodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
-    val channelId = ByteVector32(hex"56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
+    val nodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val channelId = ByteVector32.fromValidHex("56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
 
     val eclair = mock[Eclair]
     eclair.open(any, any, any, any, any, any, any)(any[Timeout]) returns Future.successful(ChannelOpened(channelId))
@@ -383,11 +384,11 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
 
   test("'close' method should accept channelIds") {
     val shortChannelIdSerialized = "42000x27x3"
-    val channelId = ByteVector32(hex"56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
+    val channelId = ByteVector32.fromValidHex("56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
     val channelIdSerialized = channelId.toHex
     val response = Map[ChannelIdentifier, Either[Throwable, CommandResponse[CMD_CLOSE]]](
       Left(channelId) -> Right(RES_SUCCESS(CMD_CLOSE(ActorRef.noSender, None, None), channelId)),
-      Left(channelId.reverse) -> Left(new RuntimeException("channel not found")),
+      Left(channelId.reversed()) -> Left(new RuntimeException("channel not found")),
       Right(ShortChannelId(shortChannelIdSerialized)) -> Right(RES_SUCCESS(CMD_CLOSE(ActorRef.noSender, None, None), ByteVector32.fromValidHex(channelIdSerialized.reverse)))
     )
 
@@ -410,11 +411,11 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
 
   test("'close' method should accept channelIds and shortChannelIds") {
     val shortChannelIdSerialized = "42000x27x3"
-    val channelId = ByteVector32(hex"56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
+    val channelId = ByteVector32.fromValidHex("56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e")
     val channelIdSerialized = channelId.toHex
     val response = Map[ChannelIdentifier, Either[Throwable, CommandResponse[CMD_CLOSE]]](
       Left(channelId) -> Right(RES_SUCCESS(CMD_CLOSE(ActorRef.noSender, None, None), channelId)),
-      Left(channelId.reverse) -> Left(new RuntimeException("channel not found")),
+      Left(channelId.reversed()) -> Left(new RuntimeException("channel not found")),
       Right(ShortChannelId(shortChannelIdSerialized)) -> Right(RES_SUCCESS(CMD_CLOSE(ActorRef.noSender, None, None), ByteVector32.fromValidHex(channelIdSerialized.reverse)))
     )
 
@@ -722,7 +723,7 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
     val eclair = mock[Eclair]
     eclair.sendWithPreimage(any, any, any, any, any, any, any, any)(any[Timeout]) returns Future.successful(UUID.randomUUID())
     val mockService = new MockService(eclair)
-    val remoteNodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val remoteNodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
 
     Post("/sendtonode", FormData("amountMsat" -> "123", "nodeId" -> "030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87").toEntity) ~>
       addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
@@ -738,7 +739,7 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
     val eclair = mock[Eclair]
     eclair.sendWithPreimage(any, any, any, any, any, any, any, any)(any[Timeout]) returns Future.successful(UUID.randomUUID())
     val mockService = new MockService(eclair)
-    val remoteNodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val remoteNodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
 
     Post("/sendtonode", FormData("amountMsat" -> "123", "nodeId" -> "030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87", "feeThresholdSat" -> "10000", "maxFeePct" -> "2.5", "externalId" -> "42").toEntity) ~>
       addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
@@ -754,7 +755,7 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
     val eclair = mock[Eclair]
     eclair.sendWithPreimage(any, any, any, any, any, any, any, any)(any[Timeout]) returns Future.successful(UUID.randomUUID())
     val mockService = new MockService(eclair)
-    val remoteNodeId = PublicKey(hex"030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
+    val remoteNodeId = PublicKey.fromHex("030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87")
 
     Post("/sendtonode", FormData("amountMsat" -> "123", "nodeId" -> "030bb6a5e0c6b203c7e2180fb78c7ba4bdce46126761d8201b91ddac089cdecc87", "pathFindingExperimentName" -> "my-test-experiment").toEntity) ~>
       addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
@@ -908,7 +909,7 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
     val expected = """{"paymentId":"487da196-a4dc-4b1e-92b4-3e5e905e9f3f","parentId":"2ad8c6d7-99cb-4238-8f67-89024b8eed0d"}"""
     val externalId = UUID.randomUUID().toString
     val pr = PaymentRequest(Block.LivenetGenesisBlock.hash, Some(1234 msat), ByteVector32.Zeroes, randomKey(), Left("Some invoice"), CltvExpiryDelta(24))
-    val expectedRoute = PredefinedNodeRoute(Seq(PublicKey.fromHex("0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9"), PublicKey(hex"0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3"), PublicKey.fromHex("026ac9fcd64fb1aa1c491fc490634dc33da41d4a17b554e0adf1b32fee88ee9f28")))
+    val expectedRoute = PredefinedNodeRoute(Seq(PublicKey.fromHex("0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9"), PublicKey.fromHex("0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3"), PublicKey.fromHex("026ac9fcd64fb1aa1c491fc490634dc33da41d4a17b554e0adf1b32fee88ee9f28")))
     val jsonNodes = serialization.write(expectedRoute.nodes)
 
     val eclair = mock[Eclair]
@@ -931,7 +932,7 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
     val payment = SendPaymentToRouteResponse(UUID.fromString("487da196-a4dc-4b1e-92b4-3e5e905e9f3f"), UUID.fromString("2ad8c6d7-99cb-4238-8f67-89024b8eed0d"), None)
     val expected = """{"paymentId":"487da196-a4dc-4b1e-92b4-3e5e905e9f3f","parentId":"2ad8c6d7-99cb-4238-8f67-89024b8eed0d"}"""
     val pr = PaymentRequest(Block.LivenetGenesisBlock.hash, Some(1234 msat), ByteVector32.Zeroes, randomKey(), Left("Some invoice"), CltvExpiryDelta(24))
-    val expectedRoute = PredefinedNodeRoute(Seq(PublicKey(hex"0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9"), PublicKey(hex"0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3"), PublicKey(hex"026ac9fcd64fb1aa1c491fc490634dc33da41d4a17b554e0adf1b32fee88ee9f28")))
+    val expectedRoute = PredefinedNodeRoute(Seq(PublicKey.fromHex("0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9"), PublicKey.fromHex("0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3"), PublicKey.fromHex("026ac9fcd64fb1aa1c491fc490634dc33da41d4a17b554e0adf1b32fee88ee9f28")))
     val csvNodes = "0217eb8243c95f5a3b7d4c5682d10de354b7007eb59b6807ae407823963c7547a9, 0242a4ae0c5bef18048fbecf995094b74bfb0f7391418d71ed394784373f41e4f3, 026ac9fcd64fb1aa1c491fc490634dc33da41d4a17b554e0adf1b32fee88ee9f28"
 
     val eclair = mock[Eclair]
@@ -948,6 +949,95 @@ class ApiServiceSpec extends AnyFunSuite with ScalatestRouteTest with IdiomaticM
         assert(status == OK)
         assert(entityAs[String] == expected)
         eclair.sendToRoute(1234 msat, None, None, None, pr, CltvExpiryDelta(190), expectedRoute, None, None, None, Nil)(any[Timeout]).wasCalled(once)
+      }
+  }
+
+  test("'findroute' method response should support both a node ID and channel ID formats") {
+    val invoice = "lnbc12580n1pw2ywztpp554ganw404sh4yjkwnysgn3wjcxfcq7gtx53gxczkjr9nlpc3hzvqdq2wpskwctddyxqr4rqrzjqwryaup9lh50kkranzgcdnn2fgvx390wgj5jd07rwr3vxeje0glc7z9rtvqqwngqqqqqqqlgqqqqqeqqjqrrt8smgjvfj7sg38dwtr9kc9gg3era9k3t2hvq3cup0jvsrtrxuplevqgfhd3rzvhulgcxj97yjuj8gdx8mllwj4wzjd8gdjhpz3lpqqvk2plh"
+
+
+    val mockChannelUpdate1 = ChannelUpdate(
+      signature = randomBytes64(),
+      chainHash = randomBytes32(),
+      shortChannelId = ShortChannelId(1, 2, 3),
+      timestamp = 0,
+      channelFlags = ChannelUpdate.ChannelFlags.DUMMY,
+      cltvExpiryDelta = CltvExpiryDelta(0),
+      htlcMinimumMsat = MilliSatoshi(1),
+      feeBaseMsat = MilliSatoshi(1),
+      feeProportionalMillionths = 1,
+      htlcMaximumMsat = None
+    )
+
+    val mockHop1 =
+      Router.ChannelHop(nodeId = randomKey().publicKey, nextNodeId = randomKey().publicKey, mockChannelUpdate1)
+    val mockHop2 =
+      Router.ChannelHop(nodeId = mockHop1.nextNodeId, nextNodeId = randomKey().publicKey, mockChannelUpdate1.copy(shortChannelId = ShortChannelId(1, 2, 4)))
+    val mockHop3 =
+      Router.ChannelHop(nodeId = mockHop2.nextNodeId, nextNodeId = randomKey().publicKey, mockChannelUpdate1.copy(shortChannelId = ShortChannelId(1, 2, 5)))
+    val mockHops = Seq(mockHop1, mockHop2, mockHop3)
+
+    val eclair = mock[Eclair]
+    val mockService = new MockService(eclair)
+    eclair.findRoute(any, any, any, any)(any[Timeout]) returns Future.successful(Router.RouteResponse(Seq(Router.Route(456.msat, mockHops))))
+
+    // invalid format
+    Post("/findroute", FormData("format"-> "invalid-output-format", "invoice" -> invoice, "amountMsat" -> "456")) ~>
+      addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
+      addHeader("Content-Type", "application/json") ~>
+      Route.seal(mockService.findRoute) ~>
+      check {
+        assert(handled)
+        assert(status == BadRequest)
+        eclair.findRoute(PublicKey.fromHex("036ded9bb8175d0c9fd3fad145965cf5005ec599570f35c682e710dc6001ff605e"), 456.msat, any, any)(any[Timeout]).wasNever(called)
+      }
+
+    // default format
+    Post("/findroute", FormData("invoice" -> invoice, "amountMsat" -> "456")) ~>
+      addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
+      addHeader("Content-Type", "application/json") ~>
+      Route.seal(mockService.findRoute) ~>
+      check {
+        assert(handled)
+        assert(status == OK)
+        assert(entityAs[JArray](Json4sSupport.unmarshaller, ClassTag(classOf[ErrorResponse])) == JArray(List(
+          JString(mockHop1.nodeId.toString()),
+          JString(mockHop2.nodeId.toString()),
+          JString(mockHop3.nodeId.toString()),
+          JString(mockHop3.nextNodeId.toString())
+        )))
+        eclair.findRoute(PublicKey.fromHex("036ded9bb8175d0c9fd3fad145965cf5005ec599570f35c682e710dc6001ff605e"), 456.msat, any, any)(any[Timeout]).wasCalled(once)
+      }
+
+    Post("/findroute", FormData("format" -> "nodeId", "invoice" -> invoice, "amountMsat" -> "456")) ~>
+      addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
+      addHeader("Content-Type", "application/json") ~>
+      Route.seal(mockService.findRoute) ~>
+      check {
+        assert(handled)
+        assert(status == OK)
+        assert(entityAs[JArray](Json4sSupport.unmarshaller, ClassTag(classOf[ErrorResponse])) == JArray(List(
+          JString(mockHop1.nodeId.toString()),
+          JString(mockHop2.nodeId.toString()),
+          JString(mockHop3.nodeId.toString()),
+          JString(mockHop3.nextNodeId.toString())
+        )))
+        eclair.findRoute(PublicKey.fromHex("036ded9bb8175d0c9fd3fad145965cf5005ec599570f35c682e710dc6001ff605e"), 456.msat, any, any)(any[Timeout]).wasCalled(twice)
+      }
+
+    Post("/findroute", FormData("format" -> "shortChannelId", "invoice" -> invoice, "amountMsat" -> "456")) ~>
+      addCredentials(BasicHttpCredentials("", mockApi().password)) ~>
+      addHeader("Content-Type", "application/json") ~>
+      Route.seal(mockService.findRoute) ~>
+      check {
+        assert(handled)
+        assert(status == OK)
+        assert(entityAs[JArray](Json4sSupport.unmarshaller, ClassTag(classOf[ErrorResponse])) == JArray(List(
+          JString(mockHop1.lastUpdate.shortChannelId.toString()),
+          JString(mockHop2.lastUpdate.shortChannelId.toString()),
+          JString(mockHop3.lastUpdate.shortChannelId.toString())
+        )))
+        eclair.findRoute(PublicKey.fromHex("036ded9bb8175d0c9fd3fad145965cf5005ec599570f35c682e710dc6001ff605e"), 456.msat, any, any)(any[Timeout]).wasCalled(threeTimes)
       }
   }
 
