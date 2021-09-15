@@ -440,7 +440,7 @@ object Peer {
   case object GetPeerInfo
   case class PeerInfo(nodeId: PublicKey, state: String, address: Option[InetSocketAddress], channels: Int)
 
-  case class PeerRoutingMessage(peerConnection: ActorRef, remoteNodeId: PublicKey, message: RoutingMessage) extends RemoteTypes
+  case class PeerRoutingMessage(peerConnection: ActorRef, remoteNodeId: PublicKey, remoteInit: protocol.Init, message: RoutingMessage) extends RemoteTypes
 
   case class Transition(previousData: Peer.Data, nextData: Peer.Data)
 

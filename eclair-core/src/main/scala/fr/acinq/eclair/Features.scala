@@ -198,6 +198,11 @@ object Features {
     val mandatory = 22
   }
 
+  case object CompressionSupport extends Feature {
+    val rfcName = "option_compression"
+    val mandatory = 24
+  }
+
   case object ShutdownAnySegwit extends Feature {
     val rfcName = "option_shutdown_anysegwit"
     val mandatory = 26
@@ -230,6 +235,7 @@ object Features {
     StaticRemoteKey,
     AnchorOutputs,
     AnchorOutputsZeroFeeHtlcTx,
+    CompressionSupport,
     ShutdownAnySegwit,
     KeySend
   )
