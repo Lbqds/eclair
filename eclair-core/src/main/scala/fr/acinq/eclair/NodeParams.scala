@@ -26,7 +26,7 @@ import fr.acinq.eclair.crypto.keymanager.{ChannelKeyManager, NodeKeyManager}
 import fr.acinq.eclair.db._
 import fr.acinq.eclair.io.PeerConnection
 import fr.acinq.eclair.payment.relay.Relayer.{RelayFees, RelayParams}
-import fr.acinq.eclair.router.Graph.WeightRatios
+import fr.acinq.eclair.router.Graph.{HeuristicsConstants, WeightRatios}
 import fr.acinq.eclair.router.PathFindingExperimentConf
 import fr.acinq.eclair.router.Router.{MultiPartParams, PathFindingConf, RouterConf, SearchBoundaries}
 import fr.acinq.eclair.tor.Socks5ProxyParams
@@ -292,7 +292,8 @@ object NodeParams extends Logging {
         randomizeCredentials = config.getBoolean("socks5.randomize-credentials"),
         useForIPv4 = config.getBoolean("socks5.use-for-ipv4"),
         useForIPv6 = config.getBoolean("socks5.use-for-ipv6"),
-        useForTor = config.getBoolean("socks5.use-for-tor")
+        useForTor = config.getBoolean("socks5.use-for-tor"),
+        useForWatchdogs = config.getBoolean("socks5.use-for-watchdogs"),
       ))
     } else {
       None
@@ -327,13 +328,21 @@ object NodeParams extends Logging {
         maxCltv = CltvExpiryDelta(config.getInt("boundaries.max-cltv")),
         maxFeeFlat = new Satoshi(config.getLong("boundaries.max-fee-flat-sat")).toMilliSatoshi,
         maxFeeProportional = config.getDouble("boundaries.max-fee-proportional-percent") / 100.0),
-      ratios = WeightRatios(
-        baseFactor = config.getDouble("ratios.base"),
-        cltvDeltaFactor = config.getDouble("ratios.cltv"),
-        ageFactor = config.getDouble("ratios.channel-age"),
-        capacityFactor = config.getDouble("ratios.channel-capacity"),
-        hopCost = getRelayFees(config.getConfig("hop-cost")),
-      ),
+      heuristicsParams = if (config.getBoolean("use-ratios")) {
+        Left(WeightRatios(
+          baseFactor = config.getDouble("ratios.base"),
+          cltvDeltaFactor = config.getDouble("ratios.cltv"),
+          ageFactor = config.getDouble("ratios.channel-age"),
+          capacityFactor = config.getDouble("ratios.channel-capacity"),
+          hopCost = getRelayFees(config.getConfig("hop-cost")),
+        ))
+      } else {
+        Right(HeuristicsConstants(
+          lockedFundsRisk = config.getDouble("locked-funds-risk"),
+          failureCost = getRelayFees(config.getConfig("failure-cost")),
+          hopCost = getRelayFees(config.getConfig("hop-cost")),
+        ))
+      },
       mpp = MultiPartParams(
         new Satoshi(config.getLong("mpp.min-amount-satoshis")).toMilliSatoshi,
         config.getInt("mpp.max-parts")),

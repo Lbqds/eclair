@@ -37,7 +37,7 @@ import fr.acinq.eclair.io.Peer.PeerRoutingMessage
 import fr.acinq.eclair.payment.PaymentRequest.ExtraHop
 import fr.acinq.eclair.remote.EclairInternalsSerializer.RemoteTypes
 import fr.acinq.eclair.router.Graph.GraphStructure.DirectedGraph
-import fr.acinq.eclair.router.Graph.WeightRatios
+import fr.acinq.eclair.router.Graph.{HeuristicsConstants, WeightRatios}
 import fr.acinq.eclair.router.Monitoring.{Metrics, Tags}
 import fr.acinq.eclair.wire.protocol._
 import kamon.context.Context
@@ -309,7 +309,7 @@ object Router {
 
   case class PathFindingConf(randomize: Boolean,
                              boundaries: SearchBoundaries,
-                             ratios: WeightRatios,
+                             heuristicsParams: Either[WeightRatios, HeuristicsConstants],
                              mpp: MultiPartParams,
                              experimentName: String,
                              experimentPercentage: Int) {
@@ -320,7 +320,7 @@ object Router {
       maxRouteLength = boundaries.maxRouteLength,
       maxCltv = boundaries.maxCltv,
       includeLocalChannelCost = false,
-      ratios = ratios,
+      ratios = heuristicsParams,
       mpp = mpp,
       experimentName = experimentName,
     )
@@ -457,7 +457,7 @@ object Router {
                          maxRouteLength: Int,
                          maxCltv: CltvExpiryDelta,
                          includeLocalChannelCost: Boolean,
-                         ratios: WeightRatios,
+                         ratios: Either[WeightRatios, HeuristicsConstants],
                          mpp: MultiPartParams,
                          experimentName: String) {
     def getMaxFee(amount: MilliSatoshi): MilliSatoshi = {
