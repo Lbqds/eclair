@@ -274,8 +274,8 @@ class Peer(val nodeParams: NodeParams, remoteNodeId: PublicKey, wallet: OnChainA
 
   private def relayOnionMessage(msg: OnionMessage) = {
     val packetType = Sphinx.MessagePacket(msg.onionRoutingPacket.payload.length.toInt)
-    val blindedPrivKateKey = Sphinx.RouteBlinding.derivePrivateKey(nodeParams.privateKey, msg.blindingKey)
-    packetType.peel(blindedPrivKateKey, ByteVector.empty, msg.onionRoutingPacket) match {
+    val blindedPrivateKey = Sphinx.RouteBlinding.derivePrivateKey(nodeParams.privateKey, msg.blindingKey)
+    packetType.peel(blindedPrivateKey, ByteVector.empty, msg.onionRoutingPacket) match {
       case Left(_: BadOnion) => () // We ignore bad messages
       case Right(p@Sphinx.DecryptedPacket(payload, nextPacket, _)) => (OnionCodecs.perHopPayloadCodecByPacketType(packetType, p.isLastPacket).decode(payload.bits): @unchecked) match {
         case Attempt.Successful(DecodeResult(relayPayload: MessageRelayPayload, _)) =>

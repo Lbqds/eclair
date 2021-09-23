@@ -470,7 +470,7 @@ object OnionCodecs {
 
   private val blindingKey: Codec[Blinding] = variableSizeBytesLong(varintoverflow, "blinding" | publicKey).as[Blinding]
 
-  val messageRelayNextCodec: Codec[MessageRelayNext] = TlvCodecs.lengthPrefixedTlvStream[OnionTlv](
+  val messageRelayNextCodec: Codec[MessageRelayNext] = TlvCodecs.tlvStream[OnionTlv](
     discriminated[OnionTlv].by(varint)
       .typecase(UInt64(4), outgoingNodeId)
       .typecase(UInt64(12), blindingKey)).complete
