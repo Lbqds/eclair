@@ -101,7 +101,10 @@ class PeerConnection(keyPair: KeyPair, conf: PeerConnection.Conf, switchboard: A
       d.transport ! TransportHandler.Listener(self)
       Metrics.PeerConnectionsConnecting.withTag(Tags.ConnectionState, Tags.ConnectionStates.Initializing).increment()
       log.info(s"using features=$localFeatures")
-      val localInit = protocol.Init(localFeatures, TlvStream(InitTlv.Networks(chainHash :: Nil)))
+      val localInit = NodeAddress.extractPublicIPAddress(d.pendingAuth.address) match {
+        case Some(remoteAddress) if !d.pendingAuth.outgoing => protocol.Init(localFeatures, TlvStream(InitTlv.Networks(chainHash :: Nil), InitTlv.RemoteAddress(remoteAddress)))
+        case _ => protocol.Init(localFeatures, TlvStream(InitTlv.Networks(chainHash :: Nil)))
+      }
       d.transport ! localInit
       startSingleTimer(INIT_TIMER, InitTimeout, conf.initTimeout)
       goto(INITIALIZING) using InitializingData(chainHash, d.pendingAuth, d.remoteNodeId, d.transport, peer, localInit, doSync)
@@ -114,6 +117,7 @@ class PeerConnection(keyPair: KeyPair, conf: PeerConnection.Conf, switchboard: A
         d.transport ! TransportHandler.ReadAck(remoteInit)
 
         log.info(s"peer is using features=${remoteInit.features}, networks=${remoteInit.networks.mkString(",")}")
+        remoteInit.remoteAddress_opt.foreach(address => log.info("peer reports that our public address is {}", address.socketAddress.toString))
 
         val featureGraphErr_opt = Features.validateFeatureGraph(remoteInit.features)
         if (remoteInit.networks.nonEmpty && remoteInit.networks.intersect(d.localInit.networks).isEmpty) {
